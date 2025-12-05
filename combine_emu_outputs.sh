@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Script to properly combine EMU counts by matching tax_id
-cd /blue/duttonc/duttonc/giraffe/superaccuracy/emu_tax_S289_S384
+cd /blue/duttonc/a.gabrys/WaterPans/WaterPansRun1/superaccuracy/emu_tax
 
 echo "Creating combined counts table with proper row matching..."
 
 # Step 1: Get all unique tax_ids and their taxonomy info across ALL samples
 echo "Getting all unique taxa..."
 cat S*/S*_merged_for_emu.fastq_rel-abundance.tsv | \
-awk -F$'\t' 'NR>1 {print $1"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10"\t"$11"\t"$12"\t"$13}' | \
+awk -F $'\t' 'NR>1 {print $1"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10"\t"$11"\t"$12"\t"$13}' | \
 sort -u > all_unique_taxa.tsv
 
 # Step 2: Create header
@@ -16,7 +16,7 @@ printf "tax_id\tspecies\tgenus\tfamily\torder\tclass\tphylum\tclade\tsuperkingdo
 
 # Find which samples exist
 SAMPLES=()
-for i in {289..384}; do
+for i in {193..288}; do
     if [[ -f "S${i}/S${i}_merged_for_emu.fastq_rel-abundance.tsv" ]]; then
         SAMPLES+=("S${i}")
         printf "\tS${i}" >> combined_emu_counts.tsv
@@ -28,13 +28,19 @@ echo "Found ${#SAMPLES[@]} samples: ${SAMPLES[*]}"
 
 # Step 3: For each unique tax_id, get counts from each sample
 echo "Matching taxa across all samples..."
+
+# Print the taxonomy table correctly (accounting for unknowns/blanks; keep everything from shifting over)
+awk -F $'\t' '{ printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", 
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12; 
+    # add trailing stuff you want here; print count columns etc.
+    # print a newline if you are just outputting taxonomy rows 
+    print "" 
+}' all_unique_taxa.tsv >> combined_emu_counts.tsv
+
 while IFS=$'\t' read -r tax_id species genus family order class phylum clade superkingdom subspecies species_subgroup species_group; do
-    # Print taxonomy info
-    printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s" "$tax_id" "$species" "$genus" "$family" "$order" "$class" "$phylum" "$clade" "$superkingdom" "$subspecies" "$species_subgroup" "$species_group" >> combined_emu_counts.tsv
-    
-    # For each sample, look up this tax_id and get its count
+# For each sample, look up this tax_id and get its count
     for sample in "${SAMPLES[@]}"; do
-        counts=$(awk -F$'\t' -v tid="$tax_id" '$1==tid {print $14; exit}' "${sample}/${sample}_merged_for_emu.fastq_rel-abundance.tsv")
+        counts=$(awk -F $'\t' -v tid="$tax_id" '$1==tid {print $14; exit}' "${sample}/${sample}_merged_for_emu.fastq_rel-abundance.tsv")
         if [[ -z "$counts" ]]; then
             counts="0"
         fi
