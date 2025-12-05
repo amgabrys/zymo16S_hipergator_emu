@@ -7,13 +7,13 @@ echo "Creating combined counts table with proper row matching..."
 
 # Step 1: Get all unique tax_ids and their taxonomy info across ALL samples
 echo "Getting all unique taxa..."
+# Add header
+echo -e "tax_id	species	genus\tfamily\torder\tclass\tphylum\tclade\tsuperkingdom\tsubspecies\tspecies_subgroup\tspecies_group" > all_unique_taxa.tsv
 cat S*/S*_merged_for_emu.fastq_rel-abundance.tsv | \
 awk -F $'\t' 'NR>1 {print $1"\t"$3"\t"$4"\t"$5"\t"$6"\t"$7"\t"$8"\t"$9"\t"$10"\t"$11"\t"$12"\t"$13}' | \
-sort -u > all_unique_taxa.tsv
+sort -u >> all_unique_taxa.tsv
 
-# Step 2: Create header
-printf "tax_id\tspecies\tgenus\tfamily\torder\tclass\tphylum\tclade\tsuperkingdom\tsubspecies\tspecies_subgroup\tspecies_group" > combined_emu_counts.tsv
-
+# Step 2: Create header for count file
 # Find which samples exist
 SAMPLES=()
 for i in {193..288}; do
@@ -29,14 +29,7 @@ echo "Found ${#SAMPLES[@]} samples: ${SAMPLES[*]}"
 # Step 3: For each unique tax_id, get counts from each sample
 echo "Matching taxa across all samples..."
 
-# Print the taxonomy table correctly (accounting for unknowns/blanks; keep everything from shifting over)
-awk -F $'\t' '{ printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s", 
-    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12; 
-    # add trailing stuff you want here; print count columns etc.
-    # print a newline if you are just outputting taxonomy rows 
-    print "" 
-}' all_unique_taxa.tsv >> combined_emu_counts.tsv
-
+# Print taxonmy info
 while IFS=$'\t' read -r tax_id species genus family order class phylum clade superkingdom subspecies species_subgroup species_group; do
 # For each sample, look up this tax_id and get its count
     for sample in "${SAMPLES[@]}"; do
@@ -47,21 +40,25 @@ while IFS=$'\t' read -r tax_id species genus family order class phylum clade sup
         printf "\t%s" "$counts" >> combined_emu_counts.tsv
     done
     printf "\n" >> combined_emu_counts.tsv
-done < all_unique_taxa.tsv
+done < <(tail -n +2 all_unique_taxa.tsv)
 
-# Step 4: Create CSV version
-sed 's/\t/,/g' combined_emu_counts.tsv > combined_emu_counts.csv
+# Step 4: Paste emu counts next to formatted taxonomy table
+paste all_unique_taxa.tsv <(cut -f2- combined_emu_counts.tsv) > combined_emu_counts_with_taxonomy.tsv
+
+# Step 5: Create CSV version
+sed 's/\t/,/g' combined_emu_counts.tsv > combined_emu_counts_with_taxonomy.csv
 
 # Clean up
 rm all_unique_taxa.tsv
+rm combined_emu_counts.tsv
 
 echo "Done! Created:"
-echo "- combined_emu_counts.tsv"
-echo "- combined_emu_counts.csv" 
-echo "Total unique taxa: $(tail -n +2 combined_emu_counts.tsv | wc -l)"
+echo "- combined_emu_counts_with_taxonomy.tsv"
+echo "- combined_emu_counts_with_taxonomy.csv" 
+echo "Total unique taxa: $(tail -n +2 combined_emu_counts_with_taxonomy.tsv | wc -l)"
 echo "Samples included: ${#SAMPLES[@]}"
 
 # Verify the data looks correct
 echo ""
 echo "First few rows of the combined data:"
-head -3 combined_emu_counts.tsv
+head -3 combined_emu_counts_with_taxonomy.tsv
